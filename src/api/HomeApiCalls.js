@@ -6,6 +6,39 @@ import {
 } from "@/store/reducers/ttsConfig";
 import { dispatch } from "@/store/store";
 import { sleep } from "@/utils/helpers";
+import { POLLY_VOICES } from "@/utils/pollyVoices";
+
+const SYNTHESIZE_URL =
+  "https://42u4bmvy3k.execute-api.us-east-1.amazonaws.com/prod/synthesize";
+
+export const synthesizeAudio = async ({
+  text,
+  voiceId,
+  engine,
+  languageCode,
+  format,
+  speedMultiplier,
+  pitchMultiplier,
+}) => {
+  const payload = {
+    text,
+    voiceId,
+    languageCode,
+    engine,
+    format,
+    speedMultiplier,
+    pitchMultiplier,
+  };
+  // const payload = { text, voiceId, engine, languageCode, format, speedMultiplier, pitchMultiplier };
+  console.log("TTS Payload:", JSON.stringify(payload, null, 2));
+  const response = await fetch(SYNTHESIZE_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error("Synthesis failed");
+  return response.json();
+};
 
 const formatter = async (formats) => {
   return formats.map((format) => ({
@@ -29,16 +62,10 @@ const audioFormatter = (audios) => {
 export const getVoices = async () => {
   await sleep(800);
   try {
-    const response = [
-      { value: "alloy", label: "Alloy - Natural & Balanced" },
-      { value: "echo", label: "Echo - Clear & Professional" },
-      { value: "fable", label: "Fable - Warm & Engaging" },
-      { value: "onyx", label: "Onyx - Deep & Authoritative" },
-      { value: "nova", label: "Nova - Energetic & Bright" },
-      { value: "shimmer", label: "Shimmer - Soft & Gentle" },
-    ];
-
-    const formatted = await formatter(response);
+    const formatted = POLLY_VOICES.map(({ voiceId, language }) => ({
+      value: voiceId,
+      label: `${voiceId} - ${language}`,
+    }));
     dispatch(setVoices(formatted));
   } catch (error) {
     console.error("Error fetching voices:", error);
@@ -48,24 +75,17 @@ export const getVoices = async () => {
 export const getLanguages = async () => {
   await sleep(400);
   try {
-    const response = [
-      { value: "en-US", label: "English (US)" },
-      { value: "en-GB", label: "English (UK)" },
-      { value: "es-ES", label: "Spanish" },
-      { value: "fr-FR", label: "French" },
-      { value: "de-DE", label: "German" },
-      { value: "it-IT", label: "Italian" },
-      { value: "pt-BR", label: "Portuguese" },
-      { value: "ja-JP", label: "Japanese" },
-      { value: "ko-KR", label: "Korean" },
-      { value: "zh-CN", label: "Chinese" },
-    ];
-
-    const formatted = await formatter(response);
+    const seen = new Set();
+    const formatted = POLLY_VOICES.reduce((acc, { languageCode, language }) => {
+      if (!seen.has(languageCode)) {
+        seen.add(languageCode);
+        acc.push({ value: languageCode, label: language });
+      }
+      return acc;
+    }, []);
     dispatch(setLanguages(formatted));
   } catch (error) {
     console.error("Error fetching languages:", error);
-    return [];
   }
 };
 
@@ -74,9 +94,9 @@ export const getVoiceFormats = async () => {
   try {
     const response = [
       { value: "mp3", label: "MP3 - Standard Quality" },
-      { value: "wav", label: "WAV - High Quality" },
-      { value: "ogg", label: "OGG - Compressed" },
-      { value: "flac", label: "FLAC - Lossless" },
+      { value: "ogg_opus", label: "Ogg Opus - High Quality Streaming" },
+      { value: "ogg_vorbis", label: "OGG Vorbis - Compressed" },
+      { value: "json", label: "JSON - Speech Marks (Animation)" },
     ];
 
     const formatted = await formatter(response);

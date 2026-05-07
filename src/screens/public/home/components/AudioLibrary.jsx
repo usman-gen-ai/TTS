@@ -1,65 +1,39 @@
-import {
-  Play,
-  Pause,
-  Download,
-  Trash2,
-  Mic,
-  Volume2,
-  Clock,
-} from "lucide-react";
-import { useState } from "react";
+import { Play, Pause, Download, Trash2, Mic, Volume2, Clock } from "lucide-react";
+import { useRef, useState } from "react";
 
 const AudioLibrary = ({ audioHistory, setAudioHistory }) => {
   const [playingId, setPlayingId] = useState(null);
+  const audioRef = useRef(null);
+
   const handlePlay = (audio) => {
     if (playingId === audio.id) {
-      window.speechSynthesis.cancel();
+      audioRef.current?.pause();
       setPlayingId(null);
       return;
     }
-    window.speechSynthesis.cancel();
-
-    const utterance = new SpeechSynthesisUtterance(audio.text);
-    utterance.onend = () => setPlayingId(null);
-    window.speechSynthesis.speak(utterance);
-
+    if (audioRef.current) {
+      audioRef.current.pause();
+    }
+    const a = new Audio(audio.audioUrl);
+    audioRef.current = a;
+    a.onended = () => setPlayingId(null);
+    a.play();
     setPlayingId(audio.id);
   };
 
   const handleDelete = (id) => {
-    setAudioHistory(audioHistory.filter((a) => a.id !== id));
     if (playingId === id) {
-      window.speechSynthesis.cancel();
+      audioRef.current?.pause();
       setPlayingId(null);
     }
+    setAudioHistory(audioHistory.filter((a) => a.id !== id));
   };
 
   const handleDownload = (audio) => {
-    const utterance = new SpeechSynthesisUtterance(audio.text);
-
-    const synth = window.speechSynthesis;
-    const audioContext = new (window.AudioContext ||
-      window.webkitAudioContext)();
-    const dest = audioContext.createMediaStreamDestination();
-    const recorder = new MediaRecorder(dest.stream);
-    const chunks = [];
-
-    recorder.ondataavailable = (e) => chunks.push(e.data);
-    recorder.onstop = () => {
-      const blob = new Blob(chunks, { type: "audio/wav" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `audio_${audio.id}.wav`;
-      a.click();
-    };
-
-    recorder.start();
-    synth.speak(utterance);
-
-    utterance.onend = () => {
-      recorder.stop();
-    };
+    const a = document.createElement("a");
+    a.href = audio.audioUrl;
+    a.download = `audio_${audio.id}.mp3`;
+    a.click();
   };
 
   return (

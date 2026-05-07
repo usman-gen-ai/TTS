@@ -1,66 +1,51 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { FileText, Volume2, Wand2, Zap } from "lucide-react";
 import StatsCard from "./StatsCard";
 import TextAreaWithStats from "./TextAreaWithStats";
 import ActionButtons from "./ActionButtons";
+import { synthesizeAudio } from "@/api/HomeApiCalls";
 
 const TextEditorArea = ({ setAudioHistory }) => {
   const [text, setText] = useState(() => {
     return localStorage.getItem("textLogs") || "";
   });
   const [isPlaying, setIsPlaying] = useState(false);
-  const utteranceRef = useRef(null);
 
   const charCount = text.length;
   const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
   const estimatedTime = Math.ceil(wordCount / 150);
 
-  const handleSpeak = (content, onAudioGenerated) => {
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(content);
-
-    // Audio context to capture audio
-    const audioContext = new AudioContext();
-    const destination = audioContext.createMediaStreamDestination();
-    const mediaRecorder = new MediaRecorder(destination.stream);
-    const chunks = [];
-
-    mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
-    mediaRecorder.onstop = () => {
-      const blob = new Blob(chunks, { type: "audio/mp3" });
-      const audioUrl = URL.createObjectURL(blob);
-
-      if (onAudioGenerated) onAudioGenerated(audioUrl);
-    };
-
-    utterance.onend = () => {
-      mediaRecorder.stop();
-      setIsPlaying(false);
-    };
-
-    mediaRecorder.start();
-    window.speechSynthesis.speak(utterance);
-    utteranceRef.current = utterance;
-    setIsPlaying(true);
-  };
-
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     if (!text.trim()) return;
+    setIsPlaying(true);
+    try {
+      const result = await synthesizeAudio({
+        text,
+        voiceId: localStorage.getItem("preferredVoice") || "Joanna",
+        engine: "standard",
+        languageCode: localStorage.getItem("preferredLanguage") || "en-US",
+        format: localStorage.getItem("preferredFormat") || "mp3",
+        speedMultiplier: parseFloat(localStorage.getItem("preferredSpeed")) || 1.0,
+        pitchMultiplier: parseFloat(localStorage.getItem("preferredPitch")) || 1.0,
+      });
 
-    handleSpeak(text, (audioUrl) => {
       const newAudio = {
         id: Date.now(),
         title: text.substring(0, 20) + (text.length > 20 ? "..." : ""),
         text,
-        voice: "Default",
+        voice: result.voice,
         duration: `${estimatedTime}m`,
-        format: "mp3",
+        format: localStorage.getItem("preferredFormat") || "mp3",
         date: new Date().toLocaleString(),
-        audioUrl,
+        audioUrl: result.url,
       };
 
       setAudioHistory((prev) => [...prev, newAudio]);
-    });
+    } catch (error) {
+      console.error("Audio generation failed:", error);
+    } finally {
+      setIsPlaying(false);
+    }
   };
 
   const handleChange = (e) => {
